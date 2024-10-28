@@ -6,6 +6,8 @@ use crate::rest_model::{string_or_float, string_or_float_opt, ExecutionType, Ord
 pub enum WebsocketEvent {
     AccountUpdate(Box<AccountUpdate>),
     OrderTradeUpdate(Box<OrderTradeUpdate>),
+    MarginCall(MarginCall),
+    AccountConfigUpdate(AccountConfigUpdate),
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,4 +202,77 @@ pub enum SelfTradePreventionMode {
     ExpireBoth,
     /// Expire maker order when STP trigger
     ExpireMaker,
+}
+
+/// 追加保证金通知
+#[derive(Debug, Clone, Deserialize)]
+pub struct MarginCall {
+    /// 事件时间
+    #[serde(rename = "E")]
+    pub event_time: u64,
+    /// 仓位
+    #[serde(rename = "p")]
+    pub position: Vec<MarginCallPosition>,
+}
+
+/// 追加保证金通知仓位
+#[derive(Debug, Clone, Deserialize)]
+pub struct MarginCallPosition {
+    /// 交易对
+    #[serde(rename = "s")]
+    pub symbol: String,
+    /// 持仓方向 : BOTH, LONG, SHORT
+    #[serde(rename = "ps")]
+    pub side: String,
+    /// 仓位
+    #[serde(rename = "pa")]
+    pub size: String,
+    /// 保证金模式 : isolated, cross
+    #[serde(rename = "mt")]
+    pub margin_type: String,
+    /// 标记价格
+    #[serde(rename = "mp")]
+    pub mark_price: String,
+    /// 持仓未实现盈亏
+    #[serde(rename = "up")]
+    pub upl: String,
+    /// 持仓需要的维持保证金
+    #[serde(rename = "mm")]
+    pub margin: String,
+}
+
+/// 杠杆倍数等账户配置 更新推送
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountConfigUpdate {
+    /// 事件时间
+    #[serde(rename = "E")]
+    pub event_time: u64,
+    /// 撮合时间
+    #[serde(rename = "T")]
+    pub cross_time: u64,
+    /// 配置
+    #[serde(rename = "ac")]
+    pub config: Option<AccountConfigUpdateConfig>,
+    /// 配置2
+    #[serde(rename = "ai")]
+    pub config2: Option<AccountConfigUpdateConfig2>,
+}
+
+/// 杠杆倍数等账户配置
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountConfigUpdateConfig {
+    /// 交易对
+    #[serde(rename = "s")]
+    pub symbol: String,
+    /// 杠杆倍数
+    #[serde(rename = "l")]
+    pub leverage: u64,
+}
+
+/// 杠杆倍数等账户配置
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountConfigUpdateConfig2 {
+    /// 联合保证金状态
+    #[serde(rename = "j")]
+    pub j: bool,
 }
