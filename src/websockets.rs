@@ -1,16 +1,14 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
+use crate::config::Config;
+use crate::errors::*;
 use futures::{SinkExt, StreamExt};
 use serde_json::from_str;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::handshake::client::Response;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::{connect_async, MaybeTlsStream};
 use url::Url;
-
-use crate::config::Config;
-use crate::errors::*;
 
 pub static STREAM_ENDPOINT: &str = "stream";
 pub static WS_ENDPOINT: &str = "ws";
@@ -147,30 +145,31 @@ impl<'a, WE: serde::de::DeserializeOwned> WebSockets<'a, WE> {
     pub fn socket(&self) -> &Option<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response)> { &self.socket }
 
     pub async fn event_loop(&mut self, running: &AtomicBool) -> Result<()> {
-        let mut tick = tokio::time::interval(std::time::Duration::from_secs(8));
         while running.load(Ordering::Relaxed) {
             if let Some((ref mut socket, _)) = self.socket {
-                tokio::select! {
-                    _ = tick.tick() =>{
-                        socket.send(Message::Ping(vec![])).await?;
-                    }
-                    message = socket.next() => {
-                        let message = message.unwrap()?;
-                        match message {
-                            Message::Text(msg) => {
-                                if msg.is_empty() {
-                                    return Ok(());
-                                }
-                                let event: WE = from_str(msg.as_str())?;
-                                (self.handler)(event)?;
+                let result = tokio::time::timeout(std::time::Duration::from_secs(8), async {
+                    let message = socket.next().await.unwrap()?;
+                    match message {
+                        Message::Text(msg) => {
+                            if msg.is_empty() {
+                                return Ok(());
                             }
-                            Message::Ping(_) | Message::Pong(_) | Message::Binary(_) | Message::Frame(_) => {}
-                            Message::Close(e) => {
-                                return Err(Error::Msg(format!("Disconnected {e:?}")));
-                            }
+                            let event: WE = from_str(msg.as_str())?;
+                            (self.handler)(event)?;
+                        }
+                        Message::Ping(_) | Message::Pong(_) | Message::Binary(_) | Message::Frame(_) => {}
+                        Message::Close(e) => {
+                            return Err(Error::Msg(format!("Disconnected {e:?}")));
                         }
                     }
+                    Ok(())
+                })
+                .await;
+                if result.is_err() {
+                    socket.send(Message::Ping(vec![])).await?;
+                    continue;
                 }
+                result.unwrap()?;
             }
         }
         Ok(())
