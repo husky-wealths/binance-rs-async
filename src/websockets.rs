@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 use serde_json::from_str;
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::handshake::client::Response;
@@ -147,22 +147,28 @@ impl<'a, WE: serde::de::DeserializeOwned> WebSockets<'a, WE> {
     pub fn socket(&self) -> &Option<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response)> { &self.socket }
 
     pub async fn event_loop(&mut self, running: &AtomicBool) -> Result<()> {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(8));
         while running.load(Ordering::Relaxed) {
             if let Some((ref mut socket, _)) = self.socket {
-                // TODO: return error instead of panic?
-                let message = socket.next().await.unwrap()?;
-
-                match message {
-                    Message::Text(msg) => {
-                        if msg.is_empty() {
-                            return Ok(());
-                        }
-                        let event: WE = from_str(msg.as_str())?;
-                        (self.handler)(event)?;
+                tokio::select! {
+                    _ = tick.tick() =>{
+                        socket.send(Message::Ping(vec![])).await?;
                     }
-                    Message::Ping(_) | Message::Pong(_) | Message::Binary(_) | Message::Frame(_) => {}
-                    Message::Close(e) => {
-                        return Err(Error::Msg(format!("Disconnected {e:?}")));
+                    message = socket.next() => {
+                        let message = message.unwrap()?;
+                        match message {
+                            Message::Text(msg) => {
+                                if msg.is_empty() {
+                                    return Ok(());
+                                }
+                                let event: WE = from_str(msg.as_str())?;
+                                (self.handler)(event)?;
+                            }
+                            Message::Ping(_) | Message::Pong(_) | Message::Binary(_) | Message::Frame(_) => {}
+                            Message::Close(e) => {
+                                return Err(Error::Msg(format!("Disconnected {e:?}")));
+                            }
+                        }
                     }
                 }
             }
