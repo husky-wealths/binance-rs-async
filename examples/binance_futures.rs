@@ -39,17 +39,17 @@ async fn general() {
 
     match general.get_server_time().await {
         Ok(answer) => info!("Server Time: {}", answer.server_time),
-        Err(e) => error!("Error: {:?}", e),
+        Err(e) => error!("get_server_time Error: {:?}", e),
     }
 
     match general.exchange_info().await {
         Ok(answer) => info!("Exchange information: {:?}", answer),
-        Err(e) => error!("Error: {:?}", e),
+        Err(e) => error!("exchange_info Error: {:?}", e),
     }
 
     match general.get_symbol_info("btcusdt").await {
         Ok(answer) => info!("Symbol information: {:?}", answer),
-        Err(e) => error!("Error: {:?}", e),
+        Err(e) => error!("get_symbol_info Error: {:?}", e),
     }
 }
 
