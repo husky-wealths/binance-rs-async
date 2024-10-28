@@ -282,7 +282,7 @@ impl FuturesAccount {
         S: Into<String>,
     {
         self.client
-            .delete_signed_p(
+            .delete_signed_p::<serde_json::Value, _>(
                 "/fapi/v1/allOpenOrders",
                 PairQuery { symbol: symbol.into() },
                 self.recv_window,
