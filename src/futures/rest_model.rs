@@ -339,6 +339,7 @@ pub struct Order {
     pub activate_price: f64,
     #[serde(with = "string_or_float", default = "default_price_rate")]
     pub price_rate: f64,
+    pub time: u64,
     pub update_time: u64,
     pub working_type: WorkingType,
     pub price_protect: bool,
